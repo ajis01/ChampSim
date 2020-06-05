@@ -1,0 +1,133 @@
+#include "cache.h"
+#include <bits/stdc++.h> 
+#include "Python.h"
+#include "stdlib.h"
+#include <tuple>
+#include <iostream>
+#include "numpy/arrayobject.h"
+#define prefetchN 10
+#include "vector"
+
+
+PyObject *pName, *pModule, *pDict, *pFuncIdx, *pFuncModel, *pFuncPredict, *pValue, *presultIdx, *presultModel, *presult, *resultTuple, *pArgs;
+PyArrayObject *result;
+
+
+static std::vector<uint64_t> LastPCs;
+static std::vector<uint64_t> LastAddrs;
+
+
+void CACHE::l1d_prefetcher_initialize() 
+{
+    cout << "CPU " << cpu << " L1D next line prefetcher" << endl;
+   // Set PYTHONPATH TO working directory
+   setenv("PYTHONPATH","/usr/eda/cs259/ajis01/Final_Project/PythonPrefetchStub",1);
+
+
+   // Initialize the Python Interpreter
+   Py_Initialize();
+
+
+   // Build the name object
+   pName = PyUnicode_FromString((char*)"prefetch_predictor");
+
+   // Load the module object
+   pModule = PyImport_Import(pName);
+
+
+   // pDict is a borrowed reference 
+   pDict = PyModule_GetDict(pModule);
+
+
+   // pFunc is also a borrowed reference 
+   pFuncIdx     = PyDict_GetItemString(pDict, (char*)"initialize_idx_to_delta");
+   pFuncModel   = PyDict_GetItemString(pDict, (char*)"initialize_model");
+   pFuncPredict = PyDict_GetItemString(pDict, (char*)"prefetch_predict");
+}
+
+void CACHE::l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit, uint8_t type)
+{
+
+    LastPCs.push_back(ip);
+    LastAddrs.push_back(addr);
+    if(LastPCs.size() >= prefetchN*2)
+    {
+    
+      uint64_t pf_addr = ((addr>>LOG2_BLOCK_SIZE)+1) << LOG2_BLOCK_SIZE;
+
+      DP ( if (warmup_complete[cpu]) {
+      cout << "[" << NAME << "] " << __func__ << hex << " base_cl: " << (addr>>LOG2_BLOCK_SIZE);
+      cout << " pf_cl: " << (pf_addr>>LOG2_BLOCK_SIZE) << " ip: " << ip << " cache_hit: " << +cache_hit << " type: " << +type << endl; });
+
+      long long int prefAddr[prefetchN];  
+
+      if (PyCallable_Check(pFuncIdx))
+      {
+          pValue=Py_BuildValue("");
+          pArgs = PyTuple_New(1);
+          PyTuple_SetItem(pArgs, 0, reinterpret_cast<PyObject*>(pValue));
+          presultIdx = PyObject_CallObject(pFuncIdx, pArgs);
+          PyErr_Print();
+      } else 
+      {
+          PyErr_Print();
+      }
+      
+
+      if (PyCallable_Check(pFuncModel))
+      {
+          pValue=Py_BuildValue("");
+          pArgs = PyTuple_New(1);
+          PyTuple_SetItem(pArgs, 0, reinterpret_cast<PyObject*>(pValue));
+          presultModel = PyObject_CallObject(pFuncModel, pArgs);
+          PyErr_Print();
+      } else 
+      {
+          PyErr_Print();
+      }
+
+      if (PyCallable_Check(pFuncPredict))
+      {
+          pValue=Py_BuildValue("[i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,i,O,O]", LastPCs[0], LastPCs[1], LastPCs[2], LastPCs[3], LastPCs[4], LastPCs[5], LastPCs[6], LastPCs[7], LastPCs[8], LastPCs[9], LastPCs[10], LastPCs[11], LastPCs[12], LastPCs[13], LastPCs[14], LastPCs[15], LastPCs[16], LastPCs[17], LastPCs[18], LastPCs[19], LastAddrs[0], LastAddrs[1], LastAddrs[2], LastAddrs[3], LastAddrs[4], LastAddrs[5], LastAddrs[6], LastAddrs[7], LastAddrs[8], LastAddrs[9], LastAddrs[10], LastAddrs[11], LastAddrs[12], LastAddrs[13], LastAddrs[14], LastAddrs[15], LastAddrs[16], LastAddrs[17], LastAddrs[18], LastAddrs[19], 10, presultIdx, presultModel);
+          pArgs = PyTuple_New(1);
+          PyTuple_SetItem(pArgs, 0, reinterpret_cast<PyObject*>(pValue));
+          presult = PyObject_CallObject(pFuncPredict, pArgs);
+          PyErr_Print();
+      } else 
+      {
+          PyErr_Print();
+      }
+      if (PyList_Check(presult)) {
+          // okay, it's a list
+          for (Py_ssize_t i = 0; i < PyList_Size(presult); ++i) {
+              PyObject* next = PyList_GetItem(presult, i);
+              prefAddr[i] = PyLong_AsLong(next) ;
+          }
+      }
+
+      for(int i=0; i<prefetchN; ++i)
+      { 
+        pf_addr = (prefAddr[i] > 0) ? (uint64_t) prefAddr[i]: (uint64_t) (~prefAddr[i] + 1);
+        prefetch_line(ip, addr, pf_addr, FILL_L1, 0);
+      }
+      //LastAddrs.erase(LastAddrs.begin());
+      //LastPCs.erase(LastPCs.begin());
+    }
+}
+
+void CACHE::l1d_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way, uint8_t prefetch, uint64_t evicted_addr, uint32_t metadata_in)
+{
+
+}
+
+void CACHE::l1d_prefetcher_final_stats()
+{
+    cout << "CPU " << cpu << " L1D next line prefetcher final stats" << endl;
+    // Clean up
+    Py_DECREF(pValue);
+    Py_DECREF(pModule);
+    Py_DECREF(pName);
+
+    // Finish the Python Interpreter
+    Py_Finalize();
+}
